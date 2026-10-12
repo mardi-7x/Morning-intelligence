@@ -1,0 +1,58 @@
+[
+  {
+    "id": "dispatch-1791632052433",
+    "dispatchedAt": "2026-10-10T11:34:12.422Z",
+    "recipient": "subhadipmardi16@gmail.com",
+    "subject": "[24h Tech Intelligence Dossier] Daily Verified Tech Briefing • 9:30 AM IST (2026-10-10)",
+    "status": "ARCHIVED_LOCAL",
+    "eventsCount": 20,
+    "verifiedCount": 1,
+    "pdfSizeBytes": 100944,
+    "messageId": "<8f81f4ca-663b-8110-703e-3e0cfd62d92a@gmail.com>",
+    "periodStart": "2026-10-09T11:34:12.422Z",
+    "periodEnd": "2026-10-10T11:34:12.422Z",
+    "details": "Report compiled & archived for subhadipmardi16@gmail.com (dispatched via narayanmardi9735@gmail.com)"
+  },
+  {
+    "id": "dispatch-1791433371533",
+    "dispatchedAt": "2026-10-08T04:22:51.523Z",
+    "recipient": "subhadipmardi16@gmail.com",
+    "subject": "[24h Tech Intelligence Dossier] Daily Verified Tech Briefing • 9:30 AM IST (2026-10-08)",
+    "status": "ARCHIVED_LOCAL",
+    "eventsCount": 19,
+    "verifiedCount": 1,
+    "pdfSizeBytes": 99278,
+    "messageId": "<9f0337c6-fde2-51f7-2b4f-01c534d8a1ba@gmail.com>",
+    "periodStart": "2026-10-07T04:22:51.523Z",
+    "periodEnd": "2026-10-08T04:22:51.523Z",
+    "details": "Report compiled & archived for subhadipmardi16@gmail.com (dispatched via narayanmardi9735@gmail.com)"
+  },
+  {
+    "id": "dispatch-1791102341126",
+    "dispatchedAt": "2026-10-04T08:25:41.115Z",
+    "recipient": "subhadipmardi16@gmail.com",
+    "subject": "[24h Tech Intelligence Dossier] Daily Verified Tech Briefing • 9:30 AM IST (2026-10-04)",
+    "status": "ARCHIVED_LOCAL",
+    "eventsCount": 10,
+    "verifiedCount": 1,
+    "pdfSizeBytes": 52259,
+    "messageId": "<0d1b8c09-b4f1-7e6a-d432-e85e7ad9ad7d@gmail.com>",
+    "periodStart": "2026-10-03T08:25:41.115Z",
+    "periodEnd": "2026-10-04T08:25:41.115Z",
+    "details": "Report compiled & archived for subhadipmardi16@gmail.com (dispatched via narayanmardi9735@gmail.com)"
+  },
+  {
+    "id": "dispatch-1791101542250",
+    "dispatchedAt": "2026-10-04T08:12:22.237Z",
+    "recipient": "narayanmardi9735@gmail.com",
+    "subject": "[24h Tech Intelligence Dossier] Daily Verified Tech Briefing • 9:30 AM IST (2026-10-04)",
+    "status": "ARCHIVED_LOCAL",
+    "eventsCount": 8,
+    "verifiedCount": 0,
+    "pdfSizeBytes": 43065,
+    "messageId": "<21cf066f-06ec-3ca9-c6fe-4e19056e0ae4@tech-intelligence.cloud>",
+    "periodStart": "2026-10-03T08:12:22.237Z",
+    "periodEnd": "2026-10-04T08:12:22.237Z",
+    "details": "Report compiled & archived locally (configure SMTP_USER/SMTP_PASS in .env for outbound live SMTP gateway)"
+  }
+]

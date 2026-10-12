@@ -1,0 +1,11 @@
+{
+  "enabled": true,
+  "targetHourUtc": 4,
+  "targetMinuteUtc": 0,
+  "recipientEmail": "subhadipmardi16@gmail.com",
+  "smtpHost": "smtp.gmail.com",
+  "smtpUser": "narayanmardi9735@gmail.com",
+  "smtpPass": "",
+  "lastRunDateUtc": "2026-10-08",
+  "lastRunTimestamp": "2026-10-08T04:23:17.793Z"
+}

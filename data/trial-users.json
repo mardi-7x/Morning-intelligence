@@ -1,0 +1,89 @@
+{
+  "999001": {
+    "user_id": "999001",
+    "username": "testuser",
+    "firstName": "TestUser",
+    "joined_date": "2026-10-10T03:48:11.222Z",
+    "trial_day_count": 1,
+    "status": "active_trial",
+    "preferred_language": "bn",
+    "read_history_vectors": [
+      {
+        "paperId": "2610.13941",
+        "paperTitle": "Images Talk Back: Guiding MMDiTs by Suppressing Image-to-Text Feedback",
+        "rating": "NOT_HELPFUL",
+        "timestamp": "2026-10-12T03:17:01.328Z",
+        "topicTags": [
+          "REASONING AND LLM",
+          "MULTIMODAL AND VISION",
+          "SAFETY AND ALIGNMENT"
+        ]
+      }
+    ],
+    "total_digests_received": 0
+  },
+  "999002": {
+    "user_id": "999002",
+    "username": "Sarah",
+    "firstName": "Sarah",
+    "joined_date": "2026-10-10T03:48:11.224Z",
+    "trial_day_count": 1,
+    "status": "active_trial",
+    "preferred_language": "en",
+    "read_history_vectors": [],
+    "total_digests_received": 0
+  },
+  "999888777": {
+    "user_id": "999888777",
+    "username": "ayesha_tech",
+    "firstName": "Ayesha",
+    "joined_date": "2026-10-10T03:02:36.813Z",
+    "trial_day_count": 1,
+    "status": "active_trial",
+    "preferred_language": "en",
+    "read_history_vectors": [],
+    "total_digests_received": 0
+  },
+  "8204210827": {
+    "user_id": "8204210827",
+    "username": "subhadip",
+    "joined_date": "2026-10-05T17:45:57.900Z",
+    "trial_day_count": 7,
+    "status": "trial_expired",
+    "preferred_language": "en",
+    "read_history_vectors": [
+      {
+        "paperId": "2610.12464",
+        "paperTitle": "Research Paper",
+        "rating": "NOT_HELPFUL",
+        "timestamp": "2026-10-12T03:18:16.379Z",
+        "topicTags": []
+      }
+    ],
+    "total_digests_received": 11,
+    "last_digest_sent_at": "2026-10-12T03:18:50.121Z",
+    "firstName": "Narayan",
+    "last_delivery_status": "SUCCESS"
+  },
+  "7559778342": {
+    "user_id": "7559778342",
+    "username": "smardix",
+    "firstName": "Subhadip",
+    "joined_date": "2026-10-07T15:05:02.745Z",
+    "trial_day_count": 4,
+    "status": "active_trial",
+    "preferred_language": "bn",
+    "read_history_vectors": [
+      {
+        "paperId": "2610.13941",
+        "paperTitle": "Research Paper",
+        "rating": "HELPFUL",
+        "timestamp": "2026-10-12T02:36:01.914Z",
+        "topicTags": []
+      }
+    ],
+    "total_digests_received": 3,
+    "last_digest_sent_at": "2026-10-08T04:23:17.792Z",
+    "last_delivery_status": "SUCCESS"
+  }
+}
