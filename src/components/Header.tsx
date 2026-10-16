@@ -12,8 +12,8 @@ interface HeaderProps {
   onGeneratePdf: () => void;
   onOpenScheduler: () => void;
   eventsCount?: number;
-  activeView?: 'INTELLIGENCE' | 'RESEARCH_TELEGRAM';
-  onViewChange?: (view: 'INTELLIGENCE' | 'RESEARCH_TELEGRAM') => void;
+  activeView?: 'INTELLIGENCE' | 'RESEARCH_TELEGRAM' | 'TRENDS';
+  onViewChange?: (view: 'INTELLIGENCE' | 'RESEARCH_TELEGRAM' | 'TRENDS') => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -127,6 +127,18 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <Activity className="w-3.5 h-3.5 text-cyan-400" />
               <span>24h Tech Intelligence Feed</span>
+            </button>
+
+            <button
+              onClick={() => onViewChange('TRENDS')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer transition-all ${
+                activeView === 'TRENDS'
+                  ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-950/50'
+                  : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+              }`}
+            >
+              <Activity className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Trends Dashboard</span>
             </button>
           </div>
         )}

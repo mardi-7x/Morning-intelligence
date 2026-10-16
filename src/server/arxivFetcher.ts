@@ -6,10 +6,19 @@ const parser = new XMLParser({
   attributeNamePrefix: '@_',
 });
 
+let cachedPapers: ArxivPaper[] = [];
+let lastArxivFetchTime = 0;
+const ARXIV_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
 /**
  * Fetches real-time genuine research papers published on arXiv within the computer science & AI categories.
  */
-export async function fetchLatestArxivPapers(maxResults = 10): Promise<ArxivPaper[]> {
+export async function fetchLatestArxivPapers(maxResults = 10, forceRefresh = false): Promise<ArxivPaper[]> {
+  const now = Date.now();
+  if (!forceRefresh && cachedPapers.length > 0 && now - lastArxivFetchTime < ARXIV_CACHE_TTL_MS) {
+    return cachedPapers.slice(0, maxResults);
+  }
+
   const queryUrl = `https://export.arxiv.org/api/query?search_query=cat:cs.AI+OR+cat:cs.LG+OR+cat:cs.CL+OR+cat:cs.CV&sortBy=submittedDate&sortOrder=descending&max_results=${maxResults}`;
 
   try {
@@ -118,6 +127,8 @@ export async function fetchLatestArxivPapers(maxResults = 10): Promise<ArxivPape
     });
 
     console.log(`[arXiv Fetcher] Successfully collected ${papers.length} genuine papers.`);
+    cachedPapers = papers;
+    lastArxivFetchTime = Date.now();
     return papers;
   } catch (error: any) {
     console.error('[arXiv Fetcher] Failed to query live arXiv API, using verified papers:', error?.message);

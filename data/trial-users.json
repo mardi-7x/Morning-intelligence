@@ -2,7 +2,7 @@
   "999001": {
     "user_id": "999001",
     "username": "testuser",
-    "firstName": "TestUser",
+    "firstName": "PerformanceTestUser",
     "joined_date": "2026-10-10T03:48:11.222Z",
     "trial_day_count": 1,
     "status": "active_trial",
@@ -12,7 +12,7 @@
         "paperId": "2610.13941",
         "paperTitle": "Images Talk Back: Guiding MMDiTs by Suppressing Image-to-Text Feedback",
         "rating": "NOT_HELPFUL",
-        "timestamp": "2026-10-12T03:17:01.328Z",
+        "timestamp": "2026-10-12T13:48:08.697Z",
         "topicTags": [
           "REASONING AND LLM",
           "MULTIMODAL AND VISION",
@@ -20,7 +20,9 @@
         ]
       }
     ],
-    "total_digests_received": 0
+    "total_digests_received": 0,
+    "last_delivery_status": "FAILED",
+    "last_delivery_error": "Bad Request: chat not found"
   },
   "999002": {
     "user_id": "999002",
@@ -31,7 +33,9 @@
     "status": "active_trial",
     "preferred_language": "en",
     "read_history_vectors": [],
-    "total_digests_received": 0
+    "total_digests_received": 0,
+    "last_delivery_status": "FAILED",
+    "last_delivery_error": "Bad Request: chat not found"
   },
   "999888777": {
     "user_id": "999888777",
@@ -42,13 +46,15 @@
     "status": "active_trial",
     "preferred_language": "en",
     "read_history_vectors": [],
-    "total_digests_received": 0
+    "total_digests_received": 0,
+    "last_delivery_status": "FAILED",
+    "last_delivery_error": "Bad Request: chat not found"
   },
   "8204210827": {
     "user_id": "8204210827",
     "username": "subhadip",
     "joined_date": "2026-10-05T17:45:57.900Z",
-    "trial_day_count": 7,
+    "trial_day_count": 8,
     "status": "trial_expired",
     "preferred_language": "en",
     "read_history_vectors": [
@@ -60,8 +66,8 @@
         "topicTags": []
       }
     ],
-    "total_digests_received": 11,
-    "last_digest_sent_at": "2026-10-12T03:18:50.121Z",
+    "total_digests_received": 14,
+    "last_digest_sent_at": "2026-10-12T13:42:01.604Z",
     "firstName": "Narayan",
     "last_delivery_status": "SUCCESS"
   },
@@ -70,8 +76,8 @@
     "username": "smardix",
     "firstName": "Subhadip",
     "joined_date": "2026-10-07T15:05:02.745Z",
-    "trial_day_count": 4,
-    "status": "active_trial",
+    "trial_day_count": 6,
+    "status": "trial_warning",
     "preferred_language": "bn",
     "read_history_vectors": [
       {
@@ -82,8 +88,32 @@
         "topicTags": []
       }
     ],
-    "total_digests_received": 3,
-    "last_digest_sent_at": "2026-10-08T04:23:17.792Z",
+    "total_digests_received": 5,
+    "last_digest_sent_at": "2026-10-12T13:42:04.280Z",
     "last_delivery_status": "SUCCESS"
+  },
+  "test_user_b": {
+    "user_id": "test_user_b",
+    "username": "User_er_b",
+    "joined_date": "2026-10-12T13:57:18.386Z",
+    "trial_day_count": 1,
+    "status": "active_trial",
+    "preferred_language": "bn",
+    "read_history_vectors": [],
+    "total_digests_received": 0,
+    "last_delivery_status": "FAILED",
+    "last_delivery_error": "Bad Request: chat not found"
+  },
+  "test_user_a": {
+    "user_id": "test_user_a",
+    "username": "User_er_a",
+    "joined_date": "2026-10-12T13:57:18.392Z",
+    "trial_day_count": 1,
+    "status": "active_trial",
+    "preferred_language": "bn",
+    "read_history_vectors": [],
+    "total_digests_received": 0,
+    "last_delivery_status": "FAILED",
+    "last_delivery_error": "Bad Request: chat not found"
   }
 }

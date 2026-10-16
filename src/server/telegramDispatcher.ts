@@ -69,6 +69,100 @@ export function saveTelegramDispatchRecord(record: TelegramDispatchRecord): void
 }
 
 /**
+ * Sends a message and returns the Telegram message ID for progressive live editing.
+ */
+export async function sendTelegramTextWithId(
+  token: string,
+  chatId: string,
+  text: string,
+  replyMarkup?: any
+): Promise<{ success: boolean; messageId?: number; error?: string }> {
+  try {
+    const payload: any = {
+      chat_id: chatId,
+      text,
+      parse_mode: 'HTML',
+      disable_web_page_preview: true,
+    };
+    if (replyMarkup) {
+      payload.reply_markup = replyMarkup;
+    }
+
+    let res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    let data = await res.json();
+    if (!data.ok && data.description?.includes("can't parse entities")) {
+      payload.text = text.replace(/<[^>]*>/g, '');
+      delete payload.parse_mode;
+      res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      data = await res.json();
+    }
+
+    if (data.ok && data.result?.message_id) {
+      return { success: true, messageId: data.result.message_id };
+    }
+    return { success: false, error: data.description || 'Failed to send message' };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Network error' };
+  }
+}
+
+/**
+ * Edits an existing Telegram message in real time to stream stage completions.
+ */
+export async function editTelegramMessageText(
+  token: string,
+  chatId: string,
+  messageId: number,
+  text: string,
+  replyMarkup?: any
+): Promise<boolean> {
+  try {
+    const payload: any = {
+      chat_id: chatId,
+      message_id: messageId,
+      text,
+      parse_mode: 'HTML',
+      disable_web_page_preview: true,
+    };
+    if (replyMarkup) {
+      payload.reply_markup = replyMarkup;
+    }
+
+    let res = await fetch(`https://api.telegram.org/bot${token}/editMessageText`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    let data = await res.json();
+    if (!data.ok && data.description?.includes("can't parse entities")) {
+      payload.text = text.replace(/<[^>]*>/g, '');
+      delete payload.parse_mode;
+      res = await fetch(`https://api.telegram.org/bot${token}/editMessageText`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      data = await res.json();
+    }
+
+    return Boolean(data.ok);
+  } catch (err: any) {
+    // If edit fails due to identical text or rate limit, fail quietly
+    return false;
+  }
+}
+
+/**
  * Builds the psychological message text according to user's 7-day trial cycle.
  */
 export function formatTelegramDigestMessage(

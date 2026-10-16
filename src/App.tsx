@@ -23,12 +23,13 @@ import { EventCard } from './components/EventCard';
 import { UrlInspectorModal } from './components/UrlInspectorModal';
 import { SchedulerModal } from './components/SchedulerModal';
 import { ResearchPaperEngineView } from './components/ResearchPaperEngineView';
+import { TrendsDashboard } from './components/TrendsDashboard';
 import { generateIntelligencePdfReport } from './utils/generatePdfReport';
 
 type FilterTab = 'ALL' | 'VERIFIED' | 'UNDER_VERIFICATION' | 'CONFLICTING' | 'DEBUNKED';
 
 export default function App() {
-  const [activeView, setActiveView] = useState<'RESEARCH_TELEGRAM' | 'INTELLIGENCE'>('RESEARCH_TELEGRAM');
+  const [activeView, setActiveView] = useState<'RESEARCH_TELEGRAM' | 'INTELLIGENCE' | 'TRENDS'>('RESEARCH_TELEGRAM');
   const [feed, setFeed] = useState<IntelligenceFeedResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
@@ -204,6 +205,8 @@ export default function App() {
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         {activeView === 'RESEARCH_TELEGRAM' ? (
           <ResearchPaperEngineView />
+        ) : activeView === 'TRENDS' ? (
+          <TrendsDashboard events={feed?.events || []} />
         ) : (
           <>
             {/* Verification Guarantee & Policy Banner */}

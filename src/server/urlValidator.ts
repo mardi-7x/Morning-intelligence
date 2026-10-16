@@ -13,6 +13,10 @@ export interface ValidatedUrlResult {
   diagnostics: SourceDiagnostics;
 }
 
+// In-memory cache for validated URLs (10-minute TTL to slash verification latency)
+const urlCache = new Map<string, { result: ValidatedUrlResult; timestamp: number }>();
+const URL_CACHE_TTL_MS = 10 * 60 * 1000;
+
 /**
  * Validates a news article source URL by testing live HTTP connectivity,
  * following redirects safely, capturing canonical URLs, and identifying broken 404/410 links.
@@ -20,6 +24,12 @@ export interface ValidatedUrlResult {
 export async function validateSourceUrl(rawUrl: string): Promise<ValidatedUrlResult> {
   const startTime = Date.now();
   const trimmedUrl = (rawUrl || '').trim();
+
+  // Check TTL cache
+  const cached = urlCache.get(trimmedUrl);
+  if (cached && Date.now() - cached.timestamp < URL_CACHE_TTL_MS) {
+    return { ...cached.result, latencyMs: 0 };
+  }
 
   // Basic format check
   if (!trimmedUrl || (!trimmedUrl.startsWith('http://') && !trimmedUrl.startsWith('https://'))) {
@@ -219,7 +229,7 @@ export async function validateSourceUrl(rawUrl: string): Promise<ValidatedUrlRes
       ? 'BLOCKED'
       : 'VALIDATED';
 
-    return {
+    const outcome: ValidatedUrlResult = {
       originalUrl: trimmedUrl,
       canonicalUrl,
       status: finalStatus,
@@ -245,9 +255,16 @@ export async function validateSourceUrl(rawUrl: string): Promise<ValidatedUrlRes
         checkedAt: new Date().toISOString(),
       },
     };
+
+    urlCache.set(trimmedUrl, { result: outcome, timestamp: Date.now() });
+    if (urlCache.size > 2000) {
+      const oldestKeys = Array.from(urlCache.keys()).slice(0, 500);
+      oldestKeys.forEach((k) => urlCache.delete(k));
+    }
+    return outcome;
   } catch (err: any) {
     const latency = Date.now() - startTime;
-    return {
+    const errorOutcome: ValidatedUrlResult = {
       originalUrl: trimmedUrl,
       canonicalUrl,
       status: 'UNAVAILABLE',
@@ -273,6 +290,9 @@ export async function validateSourceUrl(rawUrl: string): Promise<ValidatedUrlRes
         checkedAt: new Date().toISOString(),
       },
     };
+    // Cache failures briefly (2 mins) to prevent spamming unreachable host
+    urlCache.set(trimmedUrl, { result: errorOutcome, timestamp: Date.now() - (URL_CACHE_TTL_MS - 120000) });
+    return errorOutcome;
   }
 }
 

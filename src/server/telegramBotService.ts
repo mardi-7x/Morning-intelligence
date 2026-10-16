@@ -7,15 +7,142 @@ import {
   saveTelegramOffset,
   markUserDeliveryResult,
 } from './trialTracker';
-import { getTelegramConfig, sendTelegramResearchDigest } from './telegramDispatcher';
+import {
+  getTelegramConfig,
+  sendTelegramResearchDigest,
+  sendTelegramTextWithId,
+  editTelegramMessageText,
+} from './telegramDispatcher';
 import { getTodayResearchDigest } from './researchEngineService';
 import { processTechIntelligenceFeed } from './verificationEngine';
 import { buildIntelligencePdfDoc } from '../utils/generatePdfReport';
 import { UserTrialProfile } from '../types/research';
+import { jobQueue, BackgroundJob } from './jobQueue';
+import { generateMorningPodcastScript } from './podcastGenerator';
+import { generateExecutiveSlideDeck } from './slideDeckGenerator';
 
 let isPollingActive = false;
 let lastUpdateOffset = loadTelegramOffset();
 const processedUpdateIds = new Set<number>();
+
+// Register background worker for on-demand user reading tasks
+jobQueue.registerHandler('user_on_demand_read', async (job: BackgroundJob, updateProgress) => {
+  const { user, liveMessageId, token } = job.payload || {};
+  const isBn = user?.preferred_language === 'bn';
+  const chatId = job.userId;
+  const startTime = Date.now();
+
+  const updateTgLive = (stageIdx: number, titleBn: string, titleEn: string) => {
+    if (!liveMessageId || !token) return;
+    const elapsedSec = ((Date.now() - startTime) / 1000).toFixed(1);
+    const text = isBn
+      ? `⏳ <b>মর্নিং ইন্টেলিজেন্স ডসিয়ার সংকলন চলছে</b>\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `📌 <b>টাস্ক আইডি:</b> <code>${job.id}</code>\n` +
+        `🔄 <b>পর্যায় ${stageIdx}/৫:</b> ${titleBn}\n` +
+        `⏱ <b>অতিবাহিত সময়:</b> ${elapsedSec}s\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━━━━`
+      : `⏳ <b>Compiling Morning Intelligence Dossier</b>\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `📌 <b>Task ID:</b> <code>${job.id}</code>\n` +
+        `🔄 <b>Stage ${stageIdx}/5:</b> ${titleEn}\n` +
+        `⏱ <b>Elapsed:</b> ${elapsedSec}s\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+    editTelegramMessageText(token, chatId, liveMessageId, text).catch(() => {});
+  };
+
+  try {
+    // Stage 1: Collect research paper
+    await updateProgress('collecting_sources', 1, 5, 'Collecting latest arXiv breakthrough research');
+    updateTgLive(1, 'ব্রেকথ্রু arXiv গবেষণাপত্র সংগ্রহ সম্পন্ন', 'arXiv research papers collected');
+    const { digest } = await getTodayResearchDigest(false, user);
+
+    // Stage 2: Collect & verify news wire
+    await updateProgress('verifying_news', 2, 5, 'Cross-verifying 24-hour wire & canonical URLs');
+    updateTgLive(2, '২৪ ঘণ্টার টেক নিউজ ওয়্যার ও লিঙ্ক যাচাই সম্পন্ন', '24h news wire & canonical URLs verified');
+    const techFeed = await processTechIntelligenceFeed({ forceRefresh: false });
+
+    // Stage 3: Editorial 3-pillar digest synthesis & decoupled enrichments
+    await updateProgress('summarizing_ai', 3, 5, 'Synthesizing 3-pillar editorial analysis');
+    updateTgLive(3, '৩-স্তম্ভের সম্পাদকীয় বিশ্লেষণ ও এক্সিকিউটিভ ডেক তৈরি', '3-pillar editorial analysis synthesized');
+
+    // Decoupled background jobs: Podcast audio script & slide deck (failure can never block newspaper!)
+    generateMorningPodcastScript(digest, techFeed.events, user?.preferred_language).catch((e) => {
+      console.warn('[JobQueue] Optional podcast enrichment note (isolated):', e?.message);
+    });
+    generateExecutiveSlideDeck(digest, techFeed.events, user?.preferred_language).catch((e) => {
+      console.warn('[JobQueue] Optional slide-deck enrichment note (isolated):', e?.message);
+    });
+
+    // Stage 4: Preparing executive A4 PDF
+    await updateProgress('preparing_pdf', 4, 5, 'Compiling executive A4 broadsheet PDF dossier');
+    updateTgLive(4, 'অফিশিয়াল A4 ব্রডশিট PDF ডসিয়ার সংকলন সম্পন্ন', 'A4 broadsheet PDF compiled');
+    const pdfDoc = buildIntelligencePdfDoc({
+      events: techFeed.events,
+      stats: techFeed.stats,
+      reportTitle: '24-Hour Tech World Intelligence Dossier',
+      scopeLabel: 'Automated 24-Hour Verified Wire (09:30 AM IST Edition)',
+    });
+    const pdfBuffer = Buffer.from(pdfDoc.output('arraybuffer'));
+    const dateSlug = new Date().toISOString().slice(0, 10);
+    const pdfFilename = `Tech_World_Intelligence_Dossier_${dateSlug}.pdf`;
+
+    // Stage 5: Dual-format delivery to Telegram
+    await updateProgress('delivering_dossier', 5, 5, 'Delivering newspaper briefing & PDF to Telegram');
+    updateTgLive(5, 'টেলিগ্রামে ডসিয়ার ও PDF ব্রডশিট প্রেরণ করা হচ্ছে...', 'Delivering dossier & PDF to Telegram...');
+
+    console.log(`Sending newspaper to ${chatId}`);
+    const record = await sendTelegramResearchDigest(digest, user, {
+      techEvents: techFeed.events,
+      pdfBuffer,
+      pdfFilename,
+    });
+
+    const totalTimeSec = ((Date.now() - startTime) / 1000).toFixed(1);
+
+    if (record.success) {
+      console.log(`Delivery successful: ${chatId}`);
+      markUserDeliveryResult(chatId, true);
+      if (liveMessageId && token) {
+        const doneMsg = isBn
+          ? `✅ <b>সংবাদপত্র ডসিয়ার সফলভাবে প্রস্তুত ও প্রেরিত হয়েছে!</b>\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+            `📌 <b>টাস্ক আইডি:</b> <code>${job.id}</code>\n` +
+            `📄 <b>নিবন্ধ:</b> ${digest.paper.title.slice(0, 50)}...\n` +
+            `⏱ <b>মোট প্রস্তুত সময়:</b> ${totalTimeSec}s\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━━━━━`
+          : `✅ <b>Intelligence Dossier compiled & delivered!</b>\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+            `📌 <b>Task ID:</b> <code>${job.id}</code>\n` +
+            `📄 <b>Lead Research:</b> ${digest.paper.title.slice(0, 50)}...\n` +
+            `⏱ <b>Total latency:</b> ${totalTimeSec}s\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+        await editTelegramMessageText(token, chatId, liveMessageId, doneMsg);
+      }
+    } else {
+      console.log(`Delivery failed: ${chatId} (${record.error || 'Unknown error'})`);
+      markUserDeliveryResult(chatId, false, record.error);
+      if (liveMessageId && token && !record.error?.includes('paywall')) {
+        const errMsg = isBn
+          ? `⚠️ <b>ডেলিভারি ত্রুটি:</b> <i>${record.error}</i>\nটাস্ক আইডি: <code>${job.id}</code>`
+          : `⚠️ <b>Delivery error:</b> <i>${record.error}</i>\nTask ID: <code>${job.id}</code>`;
+        await editTelegramMessageText(token, chatId, liveMessageId, errMsg);
+      }
+    }
+
+    return { success: record.success, record, totalLatencyMs: Date.now() - startTime };
+  } catch (err: any) {
+    console.error(`[JobQueue] On-demand read job error for chat_id=${chatId}:`, err?.message || err);
+    markUserDeliveryResult(chatId, false, err?.message);
+    if (liveMessageId && token) {
+      const errMsg = isBn
+        ? `⚠️ দুঃখিত, সংকলনে সমস্যা হয়েছে: <i>${err?.message || 'API ত্রুটি'}</i>\nটাস্ক আইডি: <code>${job.id}</code>`
+        : `⚠️ Error preparing digest: <i>${err?.message || 'API error'}</i>\nTask ID: <code>${job.id}</code>`;
+      await editTelegramMessageText(token, chatId, liveMessageId, errMsg);
+    }
+    throw err;
+  }
+});
 
 /**
  * Sends an interactive Telegram text message with optional inline keyboard.
@@ -108,7 +235,8 @@ function buildLanguageSelectionKeyboard() {
 }
 
 /**
- * Executes the on-demand /read newspaper briefing workflow for a specific user.
+ * Immediately acknowledges on-demand /read and offloads slow work to background queue.
+ * Never makes the user wait for generation before acknowledging.
  */
 async function handleReadCommand(
   token: string,
@@ -116,62 +244,68 @@ async function handleReadCommand(
   user: UserTrialProfile
 ): Promise<void> {
   const isBn = user.preferred_language === 'bn';
-  await sendTelegramText(
-    token,
-    chatId,
-    isBn
-      ? '⏳ <i>আজকের গবেষণা ও সংবাদ সংগ্রহ করে সংবাদপত্র PDF তৈরি করা হচ্ছে...</i>'
-      : "⏳ <i>Compiling today's research paper and newspaper dossier...</i>"
+
+  // 1. Duplicate job prevention: Check if user already has an active generation job
+  const existingJobs = jobQueue.getJobs({ userId: chatId });
+  const activeJob = existingJobs.find(
+    (j) => j.type === 'user_on_demand_read' && (j.status === 'queued' || j.status === 'running')
   );
 
-  try {
-    console.log(`[DIAGNOSTIC] Executing /read workflow for chat_id=${chatId} (lang=${user.preferred_language})`);
-    const { digest } = await getTodayResearchDigest(false, user);
-    const techFeed = await processTechIntelligenceFeed({ forceRefresh: false });
+  if (activeJob) {
+    const stageNote = isBn
+      ? `⚡ <b>আপনার ডসিয়ার ইতিমধ্যেই প্রস্তুত হচ্ছে!</b>\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `📌 <b>টাস্ক আইডি:</b> <code>${activeJob.id}</code>\n` +
+        `🔄 <b>চলমান পর্যায়:</b> <i>${activeJob.progress.details || activeJob.progress.stage} (${activeJob.progress.percent}%)</i>\n` +
+        `⏱ অনুগ্রহ করে অপেক্ষা করুন, এটি সম্পন্ন হওয়ামাত্র পৌঁছে যাবে।\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━━━━`
+      : `⚡ <b>Your dossier is already being compiled!</b>\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `📌 <b>Task ID:</b> <code>${activeJob.id}</code>\n` +
+        `🔄 <b>Current Stage:</b> <i>${activeJob.progress.details || activeJob.progress.stage} (${activeJob.progress.percent}%)</i>\n` +
+        `⏱ Please wait, delivery will occur as soon as compilation completes.\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+    await sendTelegramText(token, chatId, stageNote);
+    return;
+  }
 
-    const pdfDoc = buildIntelligencePdfDoc({
-      events: techFeed.events,
-      stats: techFeed.stats,
-      reportTitle: '24-Hour Tech World Intelligence Dossier',
-      scopeLabel: 'Automated 24-Hour Verified Wire (09:30 AM IST Edition)',
-    });
-    const pdfBuffer = Buffer.from(pdfDoc.output('arraybuffer'));
-    const dateSlug = new Date().toISOString().slice(0, 10);
-    const pdfFilename = `Tech_World_Intelligence_Dossier_${dateSlug}.pdf`;
+  // 2. Immediate responsive acknowledgement (< 250ms)
+  const initialText = isBn
+    ? `⏳ <b>মর্নিং ইন্টেলিজেন্স ডসিয়ার সংকলন শুরু হয়েছে</b>\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `🔄 <b>পর্যায় ১/৫:</b> <i>সোর্স ও ব্রেকথ্রু গবেষণা অনুসন্ধান...</i>\n` +
+      `⏱ <i>রিয়েল-টাইম পর্যায়ভিত্তিক অগ্রগতি সরাসরি এখানে প্রদর্শিত হবে।</i>\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━━━━━`
+    : `⏳ <b>Morning Intelligence Dossier Compilation Started</b>\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `🔄 <b>Stage 1/5:</b> <i>Collecting breakthrough research & news wire...</i>\n` +
+      `⏱ <i>Live progressive stage status will stream directly here.</i>\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━━━━━`;
 
-    console.log(`Sending newspaper to ${chatId}`);
-    const record = await sendTelegramResearchDigest(digest, user, {
-      techEvents: techFeed.events,
-      pdfBuffer,
-      pdfFilename,
-    });
+  const ackRes = await sendTelegramTextWithId(token, chatId, initialText);
+  const liveMessageId = ackRes.messageId;
 
-    if (record.success) {
-      console.log(`Delivery successful: ${chatId}`);
-      markUserDeliveryResult(chatId, true);
-    } else {
-      console.log(`Delivery failed: ${chatId} (${record.error || 'Unknown error'})`);
-      markUserDeliveryResult(chatId, false, record.error);
-      if (record.error && !record.error.includes('paywall')) {
-        await sendTelegramText(
-          token,
-          chatId,
-          isBn
-            ? `⚠️ দুঃখিত, ডাইজেস্ট প্রেরণে সমস্যা হয়েছে: <i>${record.error}</i>`
-            : `⚠️ Sorry, issue sending digest: <i>${record.error}</i>`
-        );
-      }
-    }
-  } catch (err: any) {
-    console.error(`[DIAGNOSTIC] Delivery failed for chat_id=${chatId}:`, err?.message || err);
-    markUserDeliveryResult(chatId, false, err?.message);
-    await sendTelegramText(
-      token,
-      chatId,
-      isBn
-        ? `⚠️ দুঃখিত, সংবাদপত্র সংকলনে সমস্যা হয়েছে: <i>${err?.message || 'API ত্রুটি'}</i>`
-        : `⚠️ Error preparing digest: <i>${err?.message || 'API error'}</i>`
-    );
+  // 3. Enqueue asynchronous background job
+  const { job } = jobQueue.enqueueJob('user_on_demand_read', chatId, {
+    user,
+    liveMessageId,
+    token,
+  });
+
+  // If message ID captured, stamp task ID immediately onto the live message
+  if (liveMessageId) {
+    const updatedWithTaskId = isBn
+      ? `⏳ <b>মর্নিং ইন্টেলিজেন্স ডসিয়ার সংকলন শুরু হয়েছে</b>\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `📌 <b>টাস্ক আইডি:</b> <code>${job.id}</code>\n` +
+        `🔄 <b>পর্যায় ১/৫:</b> <i>সোর্স ও ব্রেকথ্রু গবেষণা অনুসন্ধান চলছে...</i>\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━━━━`
+      : `⏳ <b>Morning Intelligence Dossier Compilation Started</b>\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `📌 <b>Task ID:</b> <code>${job.id}</code>\n` +
+        `🔄 <b>Stage 1/5:</b> <i>Collecting breakthrough research & news wire...</i>\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+    editTelegramMessageText(token, chatId, liveMessageId, updatedWithTaskId).catch(() => {});
   }
 }
 

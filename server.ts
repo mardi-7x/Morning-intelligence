@@ -13,6 +13,7 @@ import {
   updateSchedulerConfig,
 } from './src/server/backendScheduler.ts';
 import { streamAiResponse } from './src/server/aiStreamingService.ts';
+import { jobQueue } from './src/server/jobQueue.ts';
 
 dotenv.config();
 
@@ -73,14 +74,30 @@ const CACHE_TTL_MS = 3 * 60 * 1000; // 3 minutes cache
 
 app.get('/api/health', (req, res) => {
   const isHttps = req.secure || req.headers['x-forwarded-proto'] === 'https';
+  const mem = process.memoryUsage();
+  const recentJobs = jobQueue.getJobs();
+  const activeJobs = recentJobs.filter((j) => j.status === 'running' || j.status === 'queued');
+
   res.json({
     status: 'operational',
     service: '24-Hour Tech World Intelligence',
     timestamp: new Date().toISOString(),
+    uptimeSeconds: Math.floor(process.uptime()),
     protocol: isHttps ? 'https' : (req.protocol || 'http'),
     secure: isHttps,
     forwardedProto: req.headers['x-forwarded-proto'] || 'direct',
     tlsCertified: true,
+    performance: {
+      memoryRssMb: Math.round(mem.rss / 1024 / 1024),
+      memoryHeapUsedMb: Math.round(mem.heapUsed / 1024 / 1024),
+      memoryHeapTotalMb: Math.round(mem.heapTotal / 1024 / 1024),
+      nodeVersion: process.version,
+    },
+    backgroundJobs: {
+      activeCount: activeJobs.length,
+      totalCount: recentJobs.length,
+    },
+    schedulerConfigured: true,
   });
 });
 
@@ -361,6 +378,177 @@ app.get('/api/research/download-pdf', async (req, res) => {
   }
 });
 
+// GET /api/jobs: List recent background jobs with status & progress
+app.get('/api/jobs', (req, res) => {
+  try {
+    const { userId, type, status, limit = '20' } = req.query as {
+      userId?: string;
+      type?: any;
+      status?: any;
+      limit?: string;
+    };
+    const max = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+    const jobs = jobQueue.getJobs({ userId, type, status }).slice(0, max);
+    res.json({
+      total: jobs.length,
+      jobs,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to retrieve jobs', message: err?.message });
+  }
+});
+
+// GET /api/jobs/:jobId: Get status and progress of a single job
+app.get('/api/jobs/:jobId', (req, res) => {
+  const job = jobQueue.getJob(req.params.jobId);
+  if (!job) {
+    return res.status(404).json({ error: 'Job not found' });
+  }
+  res.json(job);
+});
+
+// GET /api/jobs/:jobId/stream: Server-Sent Events (SSE) streaming progress of a specific job
+app.get('/api/jobs/:jobId/stream', (req, res) => {
+  const jobId = req.params.jobId;
+  const initialJob = jobQueue.getJob(jobId);
+
+  if (!initialJob) {
+    return res.status(404).json({ error: 'Job not found' });
+  }
+
+  // Setup SSE
+  req.socket?.setNoDelay(true);
+  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+
+  // Send initial state immediately
+  res.write(`data: ${JSON.stringify({ type: 'initial', job: initialJob })}\n\n`);
+
+  if (initialJob.status === 'completed' || initialJob.status === 'failed') {
+    res.write(`data: ${JSON.stringify({ type: 'done', job: initialJob })}\n\n`);
+    return res.end();
+  }
+
+  const onProgress = (job: any) => {
+    if (job.id === jobId && !res.writableEnded) {
+      res.write(`data: ${JSON.stringify({ type: 'progress', progress: job.progress, status: job.status })}\n\n`);
+    }
+  };
+
+  const onCompleted = (job: any) => {
+    if (job.id === jobId && !res.writableEnded) {
+      res.write(`data: ${JSON.stringify({ type: 'completed', result: job.result, job })}\n\n`);
+      res.end();
+    }
+  };
+
+  const onFailed = (job: any) => {
+    if (job.id === jobId && !res.writableEnded) {
+      res.write(`data: ${JSON.stringify({ type: 'failed', error: job.error, job })}\n\n`);
+      res.end();
+    }
+  };
+
+  jobQueue.on('job:progress', onProgress);
+  jobQueue.on('job:completed', onCompleted);
+  jobQueue.on('job:failed', onFailed);
+
+  const cleanup = () => {
+    jobQueue.off('job:progress', onProgress);
+    jobQueue.off('job:completed', onCompleted);
+    jobQueue.off('job:failed', onFailed);
+  };
+
+  req.on('close', cleanup);
+  res.on('close', cleanup);
+});
+
+// POST /api/jobs/trigger-read: Enqueues an on-demand briefing compilation job via API
+app.post('/api/jobs/trigger-read', async (req, res) => {
+  try {
+    const { userId = 'api_client', language = 'bn' } = req.body || {};
+    const { registerOrGetUser } = await import('./src/server/trialTracker.ts');
+    const { user } = registerOrGetUser(userId);
+    user.preferred_language = language;
+
+    const { job, isExisting } = jobQueue.enqueueJob('user_on_demand_read', userId, {
+      user,
+    });
+
+    res.status(isExisting ? 200 : 202).json({
+      success: true,
+      jobId: job.id,
+      status: job.status,
+      isExisting,
+      streamUrl: `/api/jobs/${job.id}/stream`,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to enqueue job', message: err?.message });
+  }
+});
+
+// GET /api/intelligence/stream-feed: Streams news events progressively via SSE
+app.get('/api/intelligence/stream-feed', async (req, res) => {
+  req.socket?.setNoDelay(true);
+  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+
+  try {
+    res.write(`data: ${JSON.stringify({ type: 'status', message: 'Collecting 24h tech wire...' })}\n\n`);
+    const { fetchRecentTechArticles } = await import('./src/server/newsFetcher.ts');
+    const { articles, newsApiStatus, newsDataStatus } = await fetchRecentTechArticles();
+
+    res.write(
+      `data: ${JSON.stringify({
+        type: 'articles_collected',
+        count: articles.length,
+        newsApiStatus,
+        newsDataStatus,
+      })}\n\n`
+    );
+
+    res.write(`data: ${JSON.stringify({ type: 'status', message: 'Running verification & URL corroboration...' })}\n\n`);
+    const { runVerificationPipeline } = await import('./src/server/verificationEngine.ts');
+    const { events, stats, engineUsed } = await runVerificationPipeline(articles);
+
+    // Stream each verified event progressively
+    for (let i = 0; i < events.length; i++) {
+      if (res.writableEnded) break;
+      res.write(
+        `data: ${JSON.stringify({
+          type: 'event',
+          index: i + 1,
+          total: events.length,
+          event: events[i],
+        })}\n\n`
+      );
+    }
+
+    if (!res.writableEnded) {
+      res.write(
+        `data: ${JSON.stringify({
+          type: 'done',
+          stats,
+          engineUsed,
+          totalEvents: events.length,
+        })}\n\n`
+      );
+      res.end();
+    }
+  } catch (err: any) {
+    if (!res.writableEnded) {
+      res.write(`data: ${JSON.stringify({ type: 'error', message: err?.message || 'Streaming failed' })}\n\n`);
+      res.end();
+    }
+  }
+});
+
 // POST /api/telegram/webhook & POST /webhook: Inbound Telegram webhook handler
 app.post(['/api/telegram/webhook', '/webhook'], async (req, res) => {
   try {
@@ -599,7 +787,7 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, HOST, () => {
+  const server = app.listen(PORT, HOST, () => {
     console.log(`[TechWorldIntelligence] Server operational at http://${HOST}:${PORT}`);
     // Start automated backend scheduler (runs 9:30 AM IST / 04:00 UTC daily)
     startBackendScheduler();
@@ -612,6 +800,38 @@ async function startServer() {
         console.error('[TechWorldIntelligence] Failed to start Telegram polling worker:', err);
       });
   });
+
+  // Cloud Run Graceful Shutdown Handler
+  const handleShutdown = (signal: string) => {
+    console.log(`[Cloud Run] Received ${signal}. Starting graceful shutdown...`);
+    try {
+      // 1. Persist in-memory job queue state immediately
+      jobQueue.persistJobsSync();
+
+      // 2. Stop Telegram long polling worker
+      import('./src/server/telegramBotService.ts')
+        .then(({ stopTelegramPollingWorker }) => {
+          stopTelegramPollingWorker();
+        })
+        .catch(() => {});
+
+      // 3. Stop accepting new connections and close server
+      server.close(() => {
+        console.log('[Cloud Run] HTTP server closed gracefully. Exiting process.');
+        process.exit(0);
+      });
+
+      setTimeout(() => {
+        console.warn('[Cloud Run] Forcefully exiting after shutdown timeout.');
+        process.exit(0);
+      }, 8000);
+    } catch (e) {
+      process.exit(0);
+    }
+  };
+
+  process.on('SIGTERM', () => handleShutdown('SIGTERM'));
+  process.on('SIGINT', () => handleShutdown('SIGINT'));
 }
 
 startServer();
